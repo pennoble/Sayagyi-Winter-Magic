@@ -279,12 +279,6 @@ function updateOverviewUI() {
     const coinsPercent = Math.min(100, (coins / 400) * 100);
     elfCoinsFill.style.width = `${coinsPercent}%`;
   }
-
-  // Static demo team scores in Overview (you can later link these to summed team XP)
-  const teamSnowScoreEl = document.getElementById("teamSnowScore");
-  const teamReinScoreEl = document.getElementById("teamReinScore");
-  if (teamSnowScoreEl) teamSnowScoreEl.textContent = "1320";
-  if (teamReinScoreEl) teamReinScoreEl.textContent = "1680";
 }
 
 // ---------- ELF QUESTS ----------
