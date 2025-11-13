@@ -27,6 +27,9 @@
     <div class="auth-logged-in" id="authLoggedIn" style="display:none;">
       <span>Hi, <strong id="userNameDisplay"></strong> ❄️</span>
       <button type="button" id="logoutBtn">Log out</button>
+      <button id="adminToggleBtn" class="admin-toggle" style="display:none;">
+  Admin
+</button>
     </div>
   </header>
 
@@ -272,6 +275,45 @@
   <footer class="event-footer">
     <span>© 2025 Pen Noble English Language Academy · Sayagyi’s Winter Magic</span>
   </footer>
+
+  <!-- Admin Dashboard (hidden unless admin) -->
+<section id="adminDashboard" class="admin-dashboard hidden">
+  <div class="admin-card">
+    <div class="admin-header-row">
+      <h2>Admin Dashboard</h2>
+      <button id="adminCloseBtn" class="admin-close-btn">✕</button>
+    </div>
+
+    <div class="admin-teams" id="adminTeamsSummary">
+      <!-- Filled by JS -->
+    </div>
+
+    <h3 class="admin-subtitle">Players</h3>
+    <div class="admin-table-wrapper">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Side</th>
+            <th>Season Lvl</th>
+            <th>XP</th>
+            <th>Coins</th>
+            <th>Magic Pass</th>
+          </tr>
+        </thead>
+        <tbody id="adminUsersBody">
+          <!-- Filled by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <p class="admin-note">
+      Only admins can see this dashboard. Data comes from Realtime Database
+      (winterMagic2025/users &amp; teams).
+    </p>
+  </div>
+</section>
 
   <!-- Firebase + Game Logic -->
   <script type="module" src="script.js"></script>
