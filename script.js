@@ -39,8 +39,9 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 
 // ---------- ADMIN CONFIG ----------
+// 👇 CHANGE THIS to your real admin email
 const ADMIN_EMAILS = [
-  "admin@pennoble.com", // TODO: change to your real admin email in Firebase Auth
+  "admin@pennoble.com",
 ];
 
 let isAdmin = false;
