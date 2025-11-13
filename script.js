@@ -1,5 +1,107 @@
-// Simple front-end logic for Sayagyi’s Winter Magic 2025
-// No backend yet – easy to connect to Firebase later.
+// Sayagyi’s Winter Magic 2025
+// Front-end game + Firebase Auth login gate (no DB yet)
+
+// ---------- FIREBASE IMPORTS ----------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+
+// ---------- FIREBASE CONFIG (your project) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyANrwevKjRqwdhPAzABbXhpXcUe6hUkMmc",
+  authDomain: "sayagyi-winter-magic.firebaseapp.com",
+  databaseURL: "https://sayagyi-winter-magic-default-rtdb.firebaseio.com/",
+  projectId: "sayagyi-winter-magic",
+  storageBucket: "sayagyi-winter-magic.firebasestorage.app",
+  messagingSenderId: "786387143177",
+  appId: "1:786387143177:web:0e2bb4a3066e673cbac6d8",
+  measurementId: "G-RW8YRDQ950"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// ---------- LOGIN / AUTH DOM ELEMENTS ----------
+const loginOverlay = document.getElementById("loginOverlay");
+const authForm = document.getElementById("authForm");
+const authEmailInput = document.getElementById("authEmail");
+const authPasswordInput = document.getElementById("authPassword");
+const authMessage = document.getElementById("authMessage");
+const authLoggedInBox = document.getElementById("authLoggedIn");
+const userNameDisplay = document.getElementById("userNameDisplay");
+const logoutBtn = document.getElementById("logoutBtn");
+
+// ---------- AUTH: LOGIN FORM ----------
+if (authForm) {
+  authForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value.trim();
+    if (authMessage) authMessage.textContent = "";
+
+    if (!email || !password) {
+      if (authMessage) authMessage.textContent = "Enter email and password.";
+      return;
+    }
+
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // If Firebase accepts login, immediately hide overlay
+      if (loginOverlay) loginOverlay.style.display = "none";
+      if (authLoggedInBox) authLoggedInBox.style.display = "flex";
+
+      const name =
+        cred.user.displayName ||
+        (cred.user.email ? cred.user.email.split("@")[0] : "Winter Player");
+      if (userNameDisplay) userNameDisplay.textContent = name;
+
+      if (authMessage) authMessage.textContent = "Logged in successfully.";
+      console.log("Logged in as:", cred.user.uid);
+    } catch (err) {
+      console.error("Login error:", err);
+      if (authMessage) {
+        authMessage.textContent = `Login failed: ${err.code || err.message}`;
+      }
+    }
+  });
+}
+
+// ---------- AUTH: LOGOUT ----------
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+  });
+}
+
+// ---------- AUTH STATE LISTENER ----------
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // Logged IN
+    if (loginOverlay) loginOverlay.style.display = "none";
+    if (authLoggedInBox) authLoggedInBox.style.display = "flex";
+
+    const name =
+      user.displayName ||
+      (user.email ? user.email.split("@")[0] : "Winter Player");
+    if (userNameDisplay) userNameDisplay.textContent = name;
+
+    if (authMessage) authMessage.textContent = "";
+  } else {
+    // Logged OUT
+    if (loginOverlay) loginOverlay.style.display = "flex";
+    if (authLoggedInBox) authLoggedInBox.style.display = "none";
+    if (authMessage) authMessage.textContent = "";
+  }
+});
+
+// ======================================================
+// =============== YOUR ORIGINAL GAME LOGIC =============
+// ======================================================
 
 // ---------- EVENT NAVIGATION ----------
 const navButtons = document.querySelectorAll(".nav-btn");
