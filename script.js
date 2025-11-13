@@ -1,6 +1,7 @@
 // Sayagyi’s Winter Magic 2025
-// Firebase Auth login gate + local game logic
-// (this version does NOT save levels to the DB yet)
+// Firebase Auth login gate + Realtime Database
+// - Team Nice / Team Naughty Season Levels (global)
+// - Per-player XP & Elf Coins (per-user)
 
 // ---------- FIREBASE IMPORTS ----------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
@@ -10,6 +11,15 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+import {
+  getDatabase,
+  ref,
+  get,
+  set,
+  update,
+  onValue,
+  runTransaction,
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
 
 // ---------- FIREBASE CONFIG (your project) ----------
 const firebaseConfig = {
@@ -20,11 +30,12 @@ const firebaseConfig = {
   storageBucket: "sayagyi-winter-magic.firebasestorage.app",
   messagingSenderId: "786387143177",
   appId: "1:786387143177:web:0e2bb4a3066e673cbac6d8",
-  measurementId: "G-RW8YRDQ950"
+  measurementId: "G-RW8YRDQ950",
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getDatabase(app);
 
 // ---------- LOGIN / AUTH DOM ELEMENTS ----------
 const loginOverlay = document.getElementById("loginOverlay");
@@ -35,6 +46,31 @@ const authMessage = document.getElementById("authMessage");
 const authLoggedInBox = document.getElementById("authLoggedIn");
 const userNameDisplay = document.getElementById("userNameDisplay");
 const logoutBtn = document.getElementById("logoutBtn");
+
+// ---------- GLOBAL STATE ----------
+let currentUser = null;
+
+// Per-user data (personal)
+const defaultUserData = () => ({
+  displayName: "",
+  seasonLevel: 1,
+  seasonXp: 0,
+  seasonXpMax: 600,
+  elfCoins: 0,
+  completedQuestIds: [],
+  chosenSide: null, // "nice" or "naughty", locked for whole event
+  magicPassActive: false,
+});
+
+let userData = defaultUserData();
+
+// Team Season Levels (public)
+let teamNice = { level: 1, xp: 0, xpMax: 300 };
+let teamNaughty = { level: 1, xp: 0, xpMax: 300 };
+
+// ---------- REFS ----------
+const userRef = (uid) => ref(db, `winterMagic2025/users/${uid}`);
+const teamsRef = ref(db, "winterMagic2025/teams");
 
 // ---------- AUTH: LOGIN FORM ----------
 if (authForm) {
@@ -52,7 +88,7 @@ if (authForm) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
 
-      // If Firebase accepts login, immediately hide overlay
+      // Hide overlay on success
       if (loginOverlay) loginOverlay.style.display = "none";
       if (authLoggedInBox) authLoggedInBox.style.display = "flex";
 
@@ -79,24 +115,109 @@ if (logoutBtn) {
   });
 }
 
+// ---------- LOAD / SAVE USER DATA ----------
+async function loadUserData(user) {
+  const uRef = userRef(user.uid);
+  const snap = await get(uRef);
+
+  const defaultName =
+    user.displayName ||
+    (user.email ? user.email.split("@")[0] : "Winter Player");
+
+  let data = defaultUserData();
+
+  if (snap.exists()) {
+    data = { ...data, ...snap.val() };
+  }
+  if (!data.displayName) data.displayName = defaultName;
+
+  userData = data;
+  if (userNameDisplay) userNameDisplay.textContent = data.displayName;
+
+  applyAllUI();
+}
+
+async function saveUserData() {
+  if (!currentUser) return;
+  const uRef = userRef(currentUser.uid);
+  const toSave = {
+    displayName: userData.displayName,
+    seasonLevel: userData.seasonLevel,
+    seasonXp: userData.seasonXp,
+    seasonXpMax: userData.seasonXpMax,
+    elfCoins: userData.elfCoins,
+    completedQuestIds: userData.completedQuestIds || [],
+    chosenSide: userData.chosenSide || null,
+    magicPassActive: !!userData.magicPassActive,
+  };
+  await update(uRef, toSave);
+}
+
+// ---------- TEAM DATA: SUBSCRIBE ----------
+onValue(teamsRef, async (snap) => {
+  if (!snap.exists()) {
+    // Initialize default teams if not present
+    await set(teamsRef, {
+      nice: { level: 1, xp: 0, xpMax: 300 },
+      naughty: { level: 1, xp: 0, xpMax: 300 },
+    });
+    teamNice = { level: 1, xp: 0, xpMax: 300 };
+    teamNaughty = { level: 1, xp: 0, xpMax: 300 };
+  } else {
+    const val = snap.val();
+    if (val.nice) teamNice = val.nice;
+    if (val.naughty) teamNaughty = val.naughty;
+  }
+  updateTeamSeasonUI();
+});
+
+// ---------- GAIN TEAM XP (GLOBAL, TRANSACTION) ----------
+function gainTeamXp(side, amount) {
+  if (!side || amount <= 0) return;
+  const sideKey = side === "nice" ? "nice" : "naughty";
+  const sideRef = ref(db, `winterMagic2025/teams/${sideKey}`);
+
+  runTransaction(sideRef, (current) => {
+    if (!current) {
+      current = { level: 1, xp: 0, xpMax: 300 };
+    }
+    let { level, xp, xpMax } = current;
+
+    xp += amount;
+    while (xp >= xpMax) {
+      xp -= xpMax;
+      level++;
+      xpMax += 200; // Each level requires more XP
+    }
+
+    return { level, xp, xpMax };
+  }).catch((err) => console.error("Team XP transaction error:", err));
+}
+
 // ---------- AUTH STATE LISTENER ----------
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+
   if (user) {
     // Logged IN
     if (loginOverlay) loginOverlay.style.display = "none";
     if (authLoggedInBox) authLoggedInBox.style.display = "flex";
 
-    const name =
-      user.displayName ||
-      (user.email ? user.email.split("@")[0] : "Winter Player");
-    if (userNameDisplay) userNameDisplay.textContent = name;
+    try {
+      await loadUserData(user);
+    } catch (e) {
+      console.error("Error loading user data:", e);
+      userData = defaultUserData();
+      applyAllUI();
+    }
 
     if (authMessage) authMessage.textContent = "";
   } else {
     // Logged OUT
     if (loginOverlay) loginOverlay.style.display = "flex";
     if (authLoggedInBox) authLoggedInBox.style.display = "none";
-    if (authMessage) authMessage.textContent = "";
+    userData = defaultUserData();
+    applyAllUI();
   }
 });
 
@@ -124,10 +245,13 @@ navButtons.forEach((btn) => {
 });
 
 // ---------- OVERVIEW: PERSONAL PROGRESS ----------
-let seasonLevel = 1;
-let seasonXp = 120;
-let seasonXpMax = 600;
-let elfCoins = 120;
+function checkPersonalLevelUp() {
+  while (userData.seasonXp >= userData.seasonXpMax) {
+    userData.seasonXp -= userData.seasonXpMax;
+    userData.seasonLevel++;
+    userData.seasonXpMax += 200; // each level harder
+  }
+}
 
 function updateOverviewUI() {
   const seasonLevelEl = document.getElementById("seasonLevel");
@@ -136,21 +260,32 @@ function updateOverviewUI() {
   const elfCoinsValue = document.getElementById("elfCoinsValue");
   const elfCoinsFill = document.getElementById("elfCoinsFill");
 
-  seasonLevelEl.textContent = seasonLevel;
-  const xpPercent = Math.min(100, (seasonXp / seasonXpMax) * 100);
-  seasonXpFill.style.width = `${xpPercent}%`;
-  seasonXpText.textContent = `${seasonXp} / ${seasonXpMax} XP`;
+  const lvl = userData.seasonLevel;
+  const xp = userData.seasonXp;
+  const xpMax = userData.seasonXpMax;
+  const coins = userData.elfCoins;
 
-  elfCoinsValue.textContent = elfCoins;
-  const coinsPercent = Math.min(100, elfCoins / 400) * 100;
-  elfCoinsFill.style.width = `${coinsPercent}%`;
+  if (seasonLevelEl) seasonLevelEl.textContent = lvl;
+  if (seasonXpFill) {
+    const xpPercent = Math.min(100, (xp / xpMax) * 100);
+    seasonXpFill.style.width = `${xpPercent}%`;
+  }
+  if (seasonXpText) {
+    seasonXpText.textContent = `${xp} / ${xpMax} XP`;
+  }
+
+  if (elfCoinsValue) elfCoinsValue.textContent = coins;
+  if (elfCoinsFill) {
+    const coinsPercent = Math.min(100, (coins / 400) * 100);
+    elfCoinsFill.style.width = `${coinsPercent}%`;
+  }
+
+  // Static demo team scores in Overview (you can later link these to summed team XP)
+  const teamSnowScoreEl = document.getElementById("teamSnowScore");
+  const teamReinScoreEl = document.getElementById("teamReinScore");
+  if (teamSnowScoreEl) teamSnowScoreEl.textContent = "1320";
+  if (teamReinScoreEl) teamReinScoreEl.textContent = "1680";
 }
-
-// Dummy team scores under Overview (just text for now)
-document.getElementById("teamSnowScore").textContent = "1320";
-document.getElementById("teamReinScore").textContent = "1680";
-
-updateOverviewUI();
 
 // ---------- ELF QUESTS ----------
 const quests = [
@@ -181,7 +316,6 @@ const quests = [
 ];
 
 let todayQuestIndex = 0;
-let completedQuestIds = [];
 
 const todayQuestBox = document.getElementById("todayQuestBox");
 const questListEl = document.getElementById("questList");
@@ -189,6 +323,7 @@ const completeQuestBtn = document.getElementById("completeQuestBtn");
 const questStatusMessage = document.getElementById("questStatusMessage");
 
 function renderTodayQuest() {
+  if (!todayQuestBox) return;
   const quest = quests[todayQuestIndex];
   todayQuestBox.innerHTML = `
     <p><strong>${quest.name}</strong></p>
@@ -197,6 +332,7 @@ function renderTodayQuest() {
 }
 
 function renderQuestList() {
+  if (!questListEl) return;
   questListEl.innerHTML = "";
   quests.forEach((q, index) => {
     const li = document.createElement("li");
@@ -209,7 +345,9 @@ function renderQuestList() {
     const statusSpan = document.createElement("span");
     statusSpan.className = "quest-status";
 
-    if (completedQuestIds.includes(q.id)) {
+    const completed = (userData.completedQuestIds || []).includes(q.id);
+
+    if (completed) {
       statusSpan.textContent = "Completed";
       statusSpan.classList.add("completed");
     } else if (index === todayQuestIndex) {
@@ -227,58 +365,27 @@ function renderQuestList() {
 }
 
 // ---------- TEAM SEASON LEVELS (PUBLIC) ----------
-let teamNiceLevel = 1;
-let teamNiceXp = 0;
-let teamNiceXpMax = 300;
-
-let teamNaughtyLevel = 1;
-let teamNaughtyXp = 0;
-let teamNaughtyXpMax = 300;
-
-// We re-use these elements for team levels
 const teamNiceLevelEl = document.getElementById("nicePointsValue");
 const teamNiceXpFill = document.getElementById("nicePointsFill");
 const teamNaughtyLevelEl = document.getElementById("naughtyPointsValue");
 const teamNaughtyXpFill = document.getElementById("naughtyPointsFill");
 
 function updateTeamSeasonUI() {
-  // Display team levels as numbers
-  if (teamNiceLevelEl) teamNiceLevelEl.textContent = teamNiceLevel;
-  if (teamNaughtyLevelEl) teamNaughtyLevelEl.textContent = teamNaughtyLevel;
+  if (teamNiceLevelEl) teamNiceLevelEl.textContent = teamNice.level;
+  if (teamNaughtyLevelEl) teamNaughtyLevelEl.textContent = teamNaughty.level;
 
-  // XP bars for each team
   if (teamNiceXpFill) {
-    const pct = Math.min(100, (teamNiceXp / teamNiceXpMax) * 100);
+    const pct = Math.min(100, (teamNice.xp / teamNice.xpMax) * 100);
     teamNiceXpFill.style.width = `${pct}%`;
   }
   if (teamNaughtyXpFill) {
-    const pct = Math.min(100, (teamNaughtyXp / teamNaughtyXpMax) * 100);
+    const pct = Math.min(100, (teamNaughty.xp / teamNaughty.xpMax) * 100);
     teamNaughtyXpFill.style.width = `${pct}%`;
   }
 }
 
-function gainTeamXp(side, amount) {
-  if (side === "nice") {
-    teamNiceXp += amount;
-    while (teamNiceXp >= teamNiceXpMax) {
-      teamNiceXp -= teamNiceXpMax;
-      teamNiceLevel++;
-      teamNiceXpMax += 200; // each level a bit harder
-    }
-  } else if (side === "naughty") {
-    teamNaughtyXp += amount;
-    while (teamNaughtyXp >= teamNaughtyXpMax) {
-      teamNaughtyXp -= teamNaughtyXpMax;
-      teamNaughtyLevel++;
-      teamNaughtyXpMax += 200;
-    }
-  }
-  updateTeamSeasonUI();
-}
-
 // ---------- PLAYER SIDE SELECTION (ONE SIDE ONLY) ----------
-let chosenSide = null;      // locked side for the whole event
-let selectedSide = "nice";  // UI highlight
+let selectedSide = "nice"; // for the buttons
 
 const sideButtons = document.querySelectorAll(".side-btn");
 const sideDescription = document.getElementById("sideDescription");
@@ -286,18 +393,26 @@ const craftGiftBtn = document.getElementById("craftGiftBtn");
 const craftResult = document.getElementById("craftResult");
 
 sideButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     const clickedSide = btn.dataset.side; // "nice" or "naughty"
 
-    // Already chose a side and trying to switch?
-    if (chosenSide && clickedSide !== chosenSide) {
-      alert(`You already chose Team ${chosenSide === "nice" ? "Nice" : "Naughty"} for this event.`);
+    // If user not logged in, ignore (overlay should block anyway)
+    if (!currentUser) return;
+
+    // Already chose a side in DB and trying to switch?
+    if (userData.chosenSide && clickedSide !== userData.chosenSide) {
+      alert(
+        `You already chose Team ${
+          userData.chosenSide === "nice" ? "Nice" : "Naughty"
+        } for this event.`
+      );
       return;
     }
 
     // Lock in their side the first time they click
-    if (!chosenSide) {
-      chosenSide = clickedSide;
+    if (!userData.chosenSide) {
+      userData.chosenSide = clickedSide;
+      await saveUserData();
     }
 
     selectedSide = clickedSide;
@@ -305,6 +420,7 @@ sideButtons.forEach((btn) => {
     sideButtons.forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
 
+    if (!sideDescription) return;
     if (selectedSide === "nice") {
       sideDescription.textContent =
         "You are on Team Nice. Craft heartwarming gifts that earn XP for your team’s Season Level.";
@@ -316,70 +432,109 @@ sideButtons.forEach((btn) => {
 });
 
 // ---------- COMPLETE QUEST BUTTON ----------
-completeQuestBtn.addEventListener("click", () => {
-  const quest = quests[todayQuestIndex];
-  if (completedQuestIds.includes(quest.id)) {
-    questStatusMessage.textContent = "You already completed today’s quest!";
-    return;
-  }
+if (completeQuestBtn) {
+  completeQuestBtn.addEventListener("click", async () => {
+    if (!currentUser) {
+      if (questStatusMessage) {
+        questStatusMessage.textContent =
+          "Please log in first so we can save your quest progress.";
+      }
+      return;
+    }
 
-  completedQuestIds.push(quest.id);
+    const quest = quests[todayQuestIndex];
+    const completedList = userData.completedQuestIds || [];
 
-  // Personal rewards
-  seasonXp += 80;
-  elfCoins += 40;
-  updateOverviewUI();
-  renderQuestList();
+    if (completedList.includes(quest.id)) {
+      if (questStatusMessage) {
+        questStatusMessage.textContent =
+          "You already completed today’s quest!";
+      }
+      return;
+    }
 
-  // Team XP bonus based on their chosen side (or default Nice if not chosen yet)
-  const teamSide = chosenSide || selectedSide;
-  gainTeamXp(teamSide, 40);
+    completedList.push(quest.id);
+    userData.completedQuestIds = completedList;
 
-  questStatusMessage.textContent =
-    "Great job! You completed today’s quest and helped your team’s Season Level.";
-});
+    // Personal rewards
+    userData.seasonXp += 80;
+    userData.elfCoins += 40;
+    checkPersonalLevelUp();
+    updateOverviewUI();
+    renderQuestList();
 
-renderTodayQuest();
-renderQuestList();
+    // Team XP bonus based on their chosen side (or fallback to selectedSide)
+    const teamSide = userData.chosenSide || selectedSide;
+    gainTeamXp(teamSide, 40);
+
+    if (questStatusMessage) {
+      questStatusMessage.textContent =
+        "Great job! You completed today’s quest and helped your team’s Season Level.";
+    }
+
+    await saveUserData();
+  });
+}
 
 // ---------- CRAFT GIFTS (AFFECTS TEAM SEASON LEVELS) ----------
-craftGiftBtn.addEventListener("click", () => {
-  // If they never explicitly chose a side, lock them to the current selected side on first craft
-  if (!chosenSide) {
-    chosenSide = selectedSide;
-  }
+if (craftGiftBtn) {
+  craftGiftBtn.addEventListener("click", async () => {
+    if (!currentUser) {
+      if (craftResult) {
+        craftResult.textContent =
+          "Please log in first so we can save your progress.";
+      }
+      return;
+    }
 
-  const side = chosenSide; // their locked team
-  const baseTeamXp = 30;
+    // If they never explicitly chose a side, lock them to the current selected side on first craft
+    if (!userData.chosenSide) {
+      userData.chosenSide = selectedSide;
+      await saveUserData();
+    }
 
-  if (side === "nice") {
-    craftResult.textContent =
-      "You crafted a sparkling Nice gift! 🎁 You helped Team Nice gain Season XP.";
-  } else {
-    craftResult.textContent =
-      "You crafted a mischievous Naughty gift! 😈 You helped Team Naughty gain Season XP.";
-  }
+    const side = userData.chosenSide;
+    const baseTeamXp = 30;
 
-  // Personal progress
-  seasonXp += 30;
-  elfCoins += 15;
-  updateOverviewUI();
+    if (craftResult) {
+      if (side === "nice") {
+        craftResult.textContent =
+          "You crafted a sparkling Nice gift! 🎁 You helped Team Nice gain Season XP.";
+      } else {
+        craftResult.textContent =
+          "You crafted a mischievous Naughty gift! 😈 You helped Team Naughty gain Season XP.";
+      }
+    }
 
-  // Team progress
-  gainTeamXp(side, baseTeamXp);
-});
+    // Personal progress
+    userData.seasonXp += 30;
+    userData.elfCoins += 15;
+    checkPersonalLevelUp();
+    updateOverviewUI();
+
+    // Team progress
+    gainTeamXp(side, baseTeamXp);
+
+    await saveUserData();
+  });
+}
 
 // ---------- MAGIC PASS ----------
-let magicPassActive = false;
+let magicPassActive = false; // local mirror if you want to do more later
 const togglePassBtn = document.getElementById("togglePassBtn");
 const passStatusText = document.getElementById("passStatusText");
 const passBadge = document.getElementById("passBadge");
 
 function updateMagicPassUI() {
-  if (magicPassActive) {
+  const active = !!userData.magicPassActive;
+  magicPassActive = active;
+
+  if (!togglePassBtn || !passStatusText || !passBadge) return;
+
+  if (active) {
     togglePassBtn.textContent = "✅ Magic Pass Activated";
     passStatusText.innerHTML =
-      'Magic Pass is <strong>active</strong>. You now earn extra Elf Coins and bonuses.';
+      'Magic Pass is <strong>active</strong>. (Future: extra coins & XP).';
     passBadge.textContent = "MAGIC PASS · ACTIVE";
   } else {
     togglePassBtn.textContent = "🔒 Activate Magic Pass";
@@ -389,12 +544,20 @@ function updateMagicPassUI() {
   }
 }
 
-togglePassBtn.addEventListener("click", () => {
-  magicPassActive = !magicPassActive;
-  updateMagicPassUI();
-});
-
-updateMagicPassUI();
+if (togglePassBtn) {
+  togglePassBtn.addEventListener("click", async () => {
+    if (!currentUser) {
+      if (passStatusText) {
+        passStatusText.textContent =
+          "Please log in first to activate Magic Pass.";
+      }
+      return;
+    }
+    userData.magicPassActive = !userData.magicPassActive;
+    updateMagicPassUI();
+    await saveUserData();
+  });
+}
 
 // ---------- REWARDS ----------
 const rewardData = [
@@ -407,31 +570,31 @@ const rewardData = [
   {
     name: "Elf Winter Badge",
     type: "nice",
-    cost: "120 Nice Team XP",
+    cost: "Nice Team Season Level 3",
     tag: "Badge",
   },
   {
     name: "Chimney Sneak Boots",
     type: "naughty",
-    cost: "120 Naughty Team XP",
+    cost: "Naughty Team Season Level 3",
     tag: "Outfit",
   },
   {
     name: "Frostbound Husky Decoration",
     type: "nice",
-    cost: "200 Nice Team XP",
+    cost: "Nice Team Season Level 4",
     tag: "Decor",
   },
   {
     name: "Mischief Sparkle Trail",
     type: "naughty",
-    cost: "200 Naughty Team XP",
+    cost: "Naughty Team Season Level 4",
     tag: "Effect",
   },
   {
     name: "Winter Magic Frame",
     type: "pass",
-    cost: "Season Level 5 + Magic Pass",
+    cost: "Personal Season Level 5 + Magic Pass",
     tag: "Profile",
   },
 ];
@@ -439,6 +602,7 @@ const rewardData = [
 const rewardGrid = document.getElementById("rewardGrid");
 
 function renderRewards() {
+  if (!rewardGrid) return;
   rewardGrid.innerHTML = "";
   rewardData.forEach((r) => {
     const card = document.createElement("div");
@@ -468,10 +632,21 @@ function renderRewards() {
   });
 }
 
-renderRewards();
+// ---------- APPLY ALL UI ----------
+function applyAllUI() {
+  updateOverviewUI();
+  updateTeamSeasonUI();
+  updateMagicPassUI();
+  renderQuestList();
+  renderTodayQuest();
+}
 
 // ---------- EVENT DAYS LEFT (DEMO TEXT ONLY) ----------
-document.getElementById("eventDaysLeft").textContent = "12 days left";
+const eventDaysLeftEl = document.getElementById("eventDaysLeft");
+if (eventDaysLeftEl) eventDaysLeftEl.textContent = "12 days left";
 
-// Initialize team season UI once at the end
-updateTeamSeasonUI();
+// ---------- INITIAL RENDER ----------
+renderTodayQuest();
+renderQuestList();
+renderRewards();
+applyAllUI();
