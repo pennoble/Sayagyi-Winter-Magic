@@ -63,6 +63,22 @@ const adminCloseBtn = document.getElementById("adminCloseBtn");
 const adminUsersBody = document.getElementById("adminUsersBody");
 const adminTeamsSummary = document.getElementById("adminTeamsSummary");
 
+// ---------- SMALL HELPER: SET HEADER NAME ----------
+function setHeaderNameFromUser(user) {
+  if (!userNameDisplay) return;
+
+  if (!user) {
+    userNameDisplay.textContent = "";
+    return;
+  }
+
+  const nm =
+    user.displayName ||
+    (user.email ? user.email.split("@")[0] : "Winter Player");
+
+  userNameDisplay.textContent = nm;
+}
+
 // ---------- GLOBAL STATE ----------
 let currentUser = null;
 
@@ -109,10 +125,8 @@ if (authForm) {
       if (loginOverlay) loginOverlay.style.display = "none";
       if (authLoggedInBox) authLoggedInBox.style.display = "flex";
 
-      const name =
-        cred.user.displayName ||
-        (cred.user.email ? cred.user.email.split("@")[0] : "Winter Player");
-      if (userNameDisplay) userNameDisplay.textContent = name;
+      // Use helper to show name in header
+      setHeaderNameFromUser(cred.user);
 
       if (authMessage) authMessage.textContent = "Logged in successfully.";
       console.log("Logged in as:", cred.user.uid);
@@ -322,6 +336,9 @@ if (adminCloseBtn && adminDashboard) {
 // ---------- AUTH STATE LISTENER ----------
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
+
+  // ALWAYS update header name when auth changes
+  setHeaderNameFromUser(user);
 
   if (user) {
     isAdmin = !!user.email && ADMIN_EMAILS.includes(user.email);
