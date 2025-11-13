@@ -137,28 +137,38 @@ async function loadUserData(user) {
   const uRef = userRef(user.uid);
   const snap = await get(uRef);
 
+  // 1) Work out a safe default name from the email
   const defaultName =
     user.displayName ||
     (user.email ? user.email.split("@")[0] : "Winter Player");
 
-let data = defaultUserData();
+  // 2) Start from defaults
+  let data = defaultUserData();
 
-if (snap.exists()) {
+  // 3) Merge any existing data from DB
+  if (snap.exists()) {
     data = { ...data, ...snap.val() };
-}
+  }
 
-// FORCE username assignment
-if (!data.displayName) {
+  // 4) If we STILL have no name, use the email prefix
+  if (!data.displayName || data.displayName.trim() === "") {
     data.displayName = defaultName;
-    await update(userRef(user.uid), { displayName: defaultName });
-}
+  }
 
-if (!data.email && user.email) data.email = user.email;
+  // 5) Ensure email field is filled
+  if (!data.email && user.email) {
+    data.email = user.email;
+  }
 
-userData = data;
+  // 6) Save to global state
+  userData = data;
 
-if (userNameDisplay) userNameDisplay.textContent = data.displayName;
+  // 7) Update UI username directly
+  if (userNameDisplay) {
+    userNameDisplay.textContent = userData.displayName;
+  }
 
+  // 8) Refresh rest of UI
   applyAllUI();
 }
 
