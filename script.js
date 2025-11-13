@@ -2,6 +2,7 @@
 // Firebase Auth login gate + Realtime Database
 // - Team Nice / Team Naughty Season Levels (global)
 // - Per-player XP & Elf Coins (per-user)
+// - Admin dashboard (read-only) for teacher
 
 // ---------- FIREBASE IMPORTS ----------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
@@ -21,7 +22,7 @@ import {
   runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
 
-// ---------- FIREBASE CONFIG (your project) ----------
+// ---------- FIREBASE CONFIG ----------
 const firebaseConfig = {
   apiKey: "AIzaSyANrwevKjRqwdhPAzABbXhpXcUe6hUkMmc",
   authDomain: "sayagyi-winter-magic.firebaseapp.com",
@@ -37,6 +38,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// ---------- ADMIN CONFIG ----------
+const ADMIN_EMAILS = [
+  "admin@pennoble.com", // TODO: change to your real admin email in Firebase Auth
+];
+
+let isAdmin = false;
+
 // ---------- LOGIN / AUTH DOM ELEMENTS ----------
 const loginOverlay = document.getElementById("loginOverlay");
 const authForm = document.getElementById("authForm");
@@ -47,18 +55,26 @@ const authLoggedInBox = document.getElementById("authLoggedIn");
 const userNameDisplay = document.getElementById("userNameDisplay");
 const logoutBtn = document.getElementById("logoutBtn");
 
+// Admin dashboard DOM elements
+const adminToggleBtn = document.getElementById("adminToggleBtn");
+const adminDashboard = document.getElementById("adminDashboard");
+const adminCloseBtn = document.getElementById("adminCloseBtn");
+const adminUsersBody = document.getElementById("adminUsersBody");
+const adminTeamsSummary = document.getElementById("adminTeamsSummary");
+
 // ---------- GLOBAL STATE ----------
 let currentUser = null;
 
 // Per-user data (personal)
 const defaultUserData = () => ({
   displayName: "",
+  email: "",
   seasonLevel: 1,
   seasonXp: 0,
   seasonXpMax: 600,
   elfCoins: 0,
   completedQuestIds: [],
-  chosenSide: null, // "nice" or "naughty", locked for whole event
+  chosenSide: null, // "nice" or "naughty"
   magicPassActive: false,
 });
 
@@ -70,6 +86,7 @@ let teamNaughty = { level: 1, xp: 0, xpMax: 300 };
 
 // ---------- REFS ----------
 const userRef = (uid) => ref(db, `winterMagic2025/users/${uid}`);
+const usersRootRef = ref(db, "winterMagic2025/users");
 const teamsRef = ref(db, "winterMagic2025/teams");
 
 // ---------- AUTH: LOGIN FORM ----------
@@ -88,7 +105,6 @@ if (authForm) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
 
-      // Hide overlay on success
       if (loginOverlay) loginOverlay.style.display = "none";
       if (authLoggedInBox) authLoggedInBox.style.display = "flex";
 
@@ -130,6 +146,7 @@ async function loadUserData(user) {
     data = { ...data, ...snap.val() };
   }
   if (!data.displayName) data.displayName = defaultName;
+  if (!data.email && user.email) data.email = user.email;
 
   userData = data;
   if (userNameDisplay) userNameDisplay.textContent = data.displayName;
@@ -142,6 +159,7 @@ async function saveUserData() {
   const uRef = userRef(currentUser.uid);
   const toSave = {
     displayName: userData.displayName,
+    email: userData.email || currentUser.email || "",
     seasonLevel: userData.seasonLevel,
     seasonXp: userData.seasonXp,
     seasonXpMax: userData.seasonXpMax,
@@ -156,7 +174,6 @@ async function saveUserData() {
 // ---------- TEAM DATA: SUBSCRIBE ----------
 onValue(teamsRef, async (snap) => {
   if (!snap.exists()) {
-    // Initialize default teams if not present
     await set(teamsRef, {
       nice: { level: 1, xp: 0, xpMax: 300 },
       naughty: { level: 1, xp: 0, xpMax: 300 },
@@ -169,9 +186,10 @@ onValue(teamsRef, async (snap) => {
     if (val.naughty) teamNaughty = val.naughty;
   }
   updateTeamSeasonUI();
+  renderAdminTeamsSummary();
 });
 
-// ---------- GAIN TEAM XP (GLOBAL, TRANSACTION) ----------
+// ---------- GAIN TEAM XP ----------
 function gainTeamXp(side, amount) {
   if (!side || amount <= 0) return;
   const sideKey = side === "nice" ? "nice" : "naughty";
@@ -187,11 +205,100 @@ function gainTeamXp(side, amount) {
     while (xp >= xpMax) {
       xp -= xpMax;
       level++;
-      xpMax += 200; // Each level requires more XP
+      xpMax += 200;
     }
 
     return { level, xp, xpMax };
   }).catch((err) => console.error("Team XP transaction error:", err));
+}
+
+// ---------- ADMIN DASHBOARD HELPERS ----------
+function updateAdminUI() {
+  if (!adminToggleBtn || !adminDashboard) return;
+
+  if (isAdmin) {
+    adminToggleBtn.style.display = "inline-flex";
+  } else {
+    adminToggleBtn.style.display = "none";
+    adminDashboard.classList.add("hidden");
+  }
+}
+
+function renderAdminTeamsSummary() {
+  if (!adminTeamsSummary) return;
+  if (!isAdmin) {
+    adminTeamsSummary.innerHTML = "";
+    return;
+  }
+
+  adminTeamsSummary.innerHTML = `
+    <div class="admin-team-chip">
+      ❄️ Team Nice · Level ${teamNice.level} · ${teamNice.xp} / ${teamNice.xpMax} XP
+    </div>
+    <div class="admin-team-chip">
+      😈 Team Naughty · Level ${teamNaughty.level} · ${teamNaughty.xp} / ${teamNaughty.xpMax} XP
+    </div>
+  `;
+}
+
+function renderAdminUsersTable(usersObj) {
+  if (!adminUsersBody) return;
+  if (!isAdmin) {
+    adminUsersBody.innerHTML = "";
+    return;
+  }
+
+  const rows = [];
+  Object.keys(usersObj || {}).forEach((uid) => {
+    const u = usersObj[uid];
+    const name = u.displayName || "(no name)";
+    const email = u.email || "";
+    const side =
+      u.chosenSide === "naughty"
+        ? "Naughty"
+        : u.chosenSide === "nice"
+        ? "Nice"
+        : "—";
+    const lvl = u.seasonLevel || 1;
+    const xp = (u.seasonXp || 0) + " / " + (u.seasonXpMax || 600);
+    const coins = u.elfCoins || 0;
+    const pass = u.magicPassActive ? "Yes" : "No";
+
+    rows.push(`
+      <tr>
+        <td>${name}</td>
+        <td>${email}</td>
+        <td>${side}</td>
+        <td>${lvl}</td>
+        <td>${xp}</td>
+        <td>${coins}</td>
+        <td>${pass}</td>
+      </tr>
+    `);
+  });
+
+  adminUsersBody.innerHTML = rows.join("");
+}
+
+function watchAllUsersIfAdmin() {
+  if (!isAdmin) return;
+  onValue(usersRootRef, (snap) => {
+    const users = snap.val() || {};
+    renderAdminUsersTable(users);
+  });
+}
+
+// Admin button / close events
+if (adminToggleBtn && adminDashboard) {
+  adminToggleBtn.addEventListener("click", () => {
+    if (!isAdmin) return;
+    adminDashboard.classList.remove("hidden");
+  });
+}
+if (adminCloseBtn && adminDashboard) {
+  adminCloseBtn.addEventListener("click", () => {
+    adminDashboard.classList.add("hidden");
+  });
 }
 
 // ---------- AUTH STATE LISTENER ----------
@@ -199,7 +306,10 @@ onAuthStateChanged(auth, async (user) => {
   currentUser = user;
 
   if (user) {
-    // Logged IN
+    isAdmin = !!user.email && ADMIN_EMAILS.includes(user.email);
+
+    updateAdminUI();
+
     if (loginOverlay) loginOverlay.style.display = "none";
     if (authLoggedInBox) authLoggedInBox.style.display = "flex";
 
@@ -211,9 +321,17 @@ onAuthStateChanged(auth, async (user) => {
       applyAllUI();
     }
 
+    if (isAdmin) {
+      watchAllUsersIfAdmin();
+      renderAdminTeamsSummary();
+    }
+
     if (authMessage) authMessage.textContent = "";
   } else {
-    // Logged OUT
+    currentUser = null;
+    isAdmin = false;
+    updateAdminUI();
+
     if (loginOverlay) loginOverlay.style.display = "flex";
     if (authLoggedInBox) authLoggedInBox.style.display = "none";
     userData = defaultUserData();
@@ -249,7 +367,7 @@ function checkPersonalLevelUp() {
   while (userData.seasonXp >= userData.seasonXpMax) {
     userData.seasonXp -= userData.seasonXpMax;
     userData.seasonLevel++;
-    userData.seasonXpMax += 200; // each level harder
+    userData.seasonXpMax += 200;
   }
 }
 
@@ -378,8 +496,8 @@ function updateTeamSeasonUI() {
   }
 }
 
-// ---------- PLAYER SIDE SELECTION (ONE SIDE ONLY) ----------
-let selectedSide = "nice"; // for the buttons
+// ---------- PLAYER SIDE SELECTION ----------
+let selectedSide = "nice";
 
 const sideButtons = document.querySelectorAll(".side-btn");
 const sideDescription = document.getElementById("sideDescription");
@@ -388,12 +506,10 @@ const craftResult = document.getElementById("craftResult");
 
 sideButtons.forEach((btn) => {
   btn.addEventListener("click", async () => {
-    const clickedSide = btn.dataset.side; // "nice" or "naughty"
+    const clickedSide = btn.dataset.side;
 
-    // If user not logged in, ignore (overlay should block anyway)
     if (!currentUser) return;
 
-    // Already chose a side in DB and trying to switch?
     if (userData.chosenSide && clickedSide !== userData.chosenSide) {
       alert(
         `You already chose Team ${
@@ -403,7 +519,6 @@ sideButtons.forEach((btn) => {
       return;
     }
 
-    // Lock in their side the first time they click
     if (!userData.chosenSide) {
       userData.chosenSide = clickedSide;
       await saveUserData();
@@ -450,14 +565,12 @@ if (completeQuestBtn) {
     completedList.push(quest.id);
     userData.completedQuestIds = completedList;
 
-    // Personal rewards
     userData.seasonXp += 80;
     userData.elfCoins += 40;
     checkPersonalLevelUp();
     updateOverviewUI();
     renderQuestList();
 
-    // Team XP bonus based on their chosen side (or fallback to selectedSide)
     const teamSide = userData.chosenSide || selectedSide;
     gainTeamXp(teamSide, 40);
 
@@ -470,7 +583,7 @@ if (completeQuestBtn) {
   });
 }
 
-// ---------- CRAFT GIFTS (AFFECTS TEAM SEASON LEVELS) ----------
+// ---------- CRAFT GIFTS ----------
 if (craftGiftBtn) {
   craftGiftBtn.addEventListener("click", async () => {
     if (!currentUser) {
@@ -481,7 +594,6 @@ if (craftGiftBtn) {
       return;
     }
 
-    // If they never explicitly chose a side, lock them to the current selected side on first craft
     if (!userData.chosenSide) {
       userData.chosenSide = selectedSide;
       await saveUserData();
@@ -500,13 +612,11 @@ if (craftGiftBtn) {
       }
     }
 
-    // Personal progress
     userData.seasonXp += 30;
     userData.elfCoins += 15;
     checkPersonalLevelUp();
     updateOverviewUI();
 
-    // Team progress
     gainTeamXp(side, baseTeamXp);
 
     await saveUserData();
@@ -514,7 +624,7 @@ if (craftGiftBtn) {
 }
 
 // ---------- MAGIC PASS ----------
-let magicPassActive = false; // local mirror if you want to do more later
+let magicPassActive = false;
 const togglePassBtn = document.getElementById("togglePassBtn");
 const passStatusText = document.getElementById("passStatusText");
 const passBadge = document.getElementById("passBadge");
@@ -633,9 +743,10 @@ function applyAllUI() {
   updateMagicPassUI();
   renderQuestList();
   renderTodayQuest();
+  renderAdminTeamsSummary();
 }
 
-// ---------- EVENT DAYS LEFT (DEMO TEXT ONLY) ----------
+// ---------- EVENT DAYS LEFT ----------
 const eventDaysLeftEl = document.getElementById("eventDaysLeft");
 if (eventDaysLeftEl) eventDaysLeftEl.textContent = "12 days left";
 
