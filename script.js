@@ -141,16 +141,23 @@ async function loadUserData(user) {
     user.displayName ||
     (user.email ? user.email.split("@")[0] : "Winter Player");
 
-  let data = defaultUserData();
+let data = defaultUserData();
 
-  if (snap.exists()) {
+if (snap.exists()) {
     data = { ...data, ...snap.val() };
-  }
-  if (!data.displayName) data.displayName = defaultName;
-  if (!data.email && user.email) data.email = user.email;
+}
 
-  userData = data;
-  if (userNameDisplay) userNameDisplay.textContent = data.displayName;
+// FORCE username assignment
+if (!data.displayName) {
+    data.displayName = defaultName;
+    await update(userRef(user.uid), { displayName: defaultName });
+}
+
+if (!data.email && user.email) data.email = user.email;
+
+userData = data;
+
+if (userNameDisplay) userNameDisplay.textContent = data.displayName;
 
   applyAllUI();
 }
