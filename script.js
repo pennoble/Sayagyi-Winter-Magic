@@ -1,5 +1,6 @@
 // Sayagyi’s Winter Magic 2025
-// Front-end game + Firebase Auth login gate (no DB yet)
+// Firebase Auth login gate + local game logic
+// (this version does NOT save levels to the DB yet)
 
 // ---------- FIREBASE IMPORTS ----------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
@@ -100,7 +101,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ======================================================
-// =============== YOUR ORIGINAL GAME LOGIC =============
+// =============== GAME LOGIC (FRONT-END) ===============
 // ======================================================
 
 // ---------- EVENT NAVIGATION ----------
@@ -122,7 +123,7 @@ navButtons.forEach((btn) => {
   });
 });
 
-// ---------- OVERVIEW: DUMMY PROGRESS ----------
+// ---------- OVERVIEW: PERSONAL PROGRESS ----------
 let seasonLevel = 1;
 let seasonXp = 120;
 let seasonXpMax = 600;
@@ -145,7 +146,7 @@ function updateOverviewUI() {
   elfCoinsFill.style.width = `${coinsPercent}%`;
 }
 
-// Dummy team scores
+// Dummy team scores under Overview (just text for now)
 document.getElementById("teamSnowScore").textContent = "1320";
 document.getElementById("teamReinScore").textContent = "1680";
 
@@ -225,6 +226,96 @@ function renderQuestList() {
   });
 }
 
+// ---------- TEAM SEASON LEVELS (PUBLIC) ----------
+let teamNiceLevel = 1;
+let teamNiceXp = 0;
+let teamNiceXpMax = 300;
+
+let teamNaughtyLevel = 1;
+let teamNaughtyXp = 0;
+let teamNaughtyXpMax = 300;
+
+// We re-use these elements for team levels
+const teamNiceLevelEl = document.getElementById("nicePointsValue");
+const teamNiceXpFill = document.getElementById("nicePointsFill");
+const teamNaughtyLevelEl = document.getElementById("naughtyPointsValue");
+const teamNaughtyXpFill = document.getElementById("naughtyPointsFill");
+
+function updateTeamSeasonUI() {
+  // Display team levels as numbers
+  if (teamNiceLevelEl) teamNiceLevelEl.textContent = teamNiceLevel;
+  if (teamNaughtyLevelEl) teamNaughtyLevelEl.textContent = teamNaughtyLevel;
+
+  // XP bars for each team
+  if (teamNiceXpFill) {
+    const pct = Math.min(100, (teamNiceXp / teamNiceXpMax) * 100);
+    teamNiceXpFill.style.width = `${pct}%`;
+  }
+  if (teamNaughtyXpFill) {
+    const pct = Math.min(100, (teamNaughtyXp / teamNaughtyXpMax) * 100);
+    teamNaughtyXpFill.style.width = `${pct}%`;
+  }
+}
+
+function gainTeamXp(side, amount) {
+  if (side === "nice") {
+    teamNiceXp += amount;
+    while (teamNiceXp >= teamNiceXpMax) {
+      teamNiceXp -= teamNiceXpMax;
+      teamNiceLevel++;
+      teamNiceXpMax += 200; // each level a bit harder
+    }
+  } else if (side === "naughty") {
+    teamNaughtyXp += amount;
+    while (teamNaughtyXp >= teamNaughtyXpMax) {
+      teamNaughtyXp -= teamNaughtyXpMax;
+      teamNaughtyLevel++;
+      teamNaughtyXpMax += 200;
+    }
+  }
+  updateTeamSeasonUI();
+}
+
+// ---------- PLAYER SIDE SELECTION (ONE SIDE ONLY) ----------
+let chosenSide = null;      // locked side for the whole event
+let selectedSide = "nice";  // UI highlight
+
+const sideButtons = document.querySelectorAll(".side-btn");
+const sideDescription = document.getElementById("sideDescription");
+const craftGiftBtn = document.getElementById("craftGiftBtn");
+const craftResult = document.getElementById("craftResult");
+
+sideButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const clickedSide = btn.dataset.side; // "nice" or "naughty"
+
+    // Already chose a side and trying to switch?
+    if (chosenSide && clickedSide !== chosenSide) {
+      alert(`You already chose Team ${chosenSide === "nice" ? "Nice" : "Naughty"} for this event.`);
+      return;
+    }
+
+    // Lock in their side the first time they click
+    if (!chosenSide) {
+      chosenSide = clickedSide;
+    }
+
+    selectedSide = clickedSide;
+
+    sideButtons.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    if (selectedSide === "nice") {
+      sideDescription.textContent =
+        "You are on Team Nice. Craft heartwarming gifts that earn XP for your team’s Season Level.";
+    } else {
+      sideDescription.textContent =
+        "You are on Team Naughty. Craft cheeky gifts that earn XP for your team’s Season Level.";
+    }
+  });
+});
+
+// ---------- COMPLETE QUEST BUTTON ----------
 completeQuestBtn.addEventListener("click", () => {
   const quest = quests[todayQuestIndex];
   if (completedQuestIds.includes(quest.id)) {
@@ -233,80 +324,50 @@ completeQuestBtn.addEventListener("click", () => {
   }
 
   completedQuestIds.push(quest.id);
-  // Grant some XP and Elf Coins
+
+  // Personal rewards
   seasonXp += 80;
   elfCoins += 40;
   updateOverviewUI();
   renderQuestList();
 
+  // Team XP bonus based on their chosen side (or default Nice if not chosen yet)
+  const teamSide = chosenSide || selectedSide;
+  gainTeamXp(teamSide, 40);
+
   questStatusMessage.textContent =
-    "Great job! You completed today’s quest and earned Elf Coins + XP.";
+    "Great job! You completed today’s quest and helped your team’s Season Level.";
 });
 
 renderTodayQuest();
 renderQuestList();
 
-// ---------- NICE & NAUGHTY ----------
-let selectedSide = "nice";
-let nicePoints = 0;
-let naughtyPoints = 0;
-
-const sideButtons = document.querySelectorAll(".side-btn");
-const sideDescription = document.getElementById("sideDescription");
-const craftGiftBtn = document.getElementById("craftGiftBtn");
-const craftResult = document.getElementById("craftResult");
-const nicePointsValue = document.getElementById("nicePointsValue");
-const naughtyPointsValue = document.getElementById("naughtyPointsValue");
-const nicePointsFill = document.getElementById("nicePointsFill");
-const naughtyPointsFill = document.getElementById("naughtyPointsFill");
-
-sideButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    sideButtons.forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    selectedSide = btn.dataset.side;
-
-    if (selectedSide === "nice") {
-      sideDescription.textContent =
-        "Craft heartwarming gifts that earn Nice Points and unlock cozy rewards.";
-    } else {
-      sideDescription.textContent =
-        "Craft cheeky gifts that earn Naughty Points and unlock playful rewards.";
-    }
-  });
-});
-
-function updateNiceNaughtyUI() {
-  nicePointsValue.textContent = nicePoints;
-  naughtyPointsValue.textContent = naughtyPoints;
-
-  nicePointsFill.style.width = `${Math.min(100, (nicePoints / 200) * 100)}%`;
-  naughtyPointsFill.style.width = `${Math.min(
-    100,
-    (naughtyPoints / 200) * 100
-  )}%`;
-}
-
+// ---------- CRAFT GIFTS (AFFECTS TEAM SEASON LEVELS) ----------
 craftGiftBtn.addEventListener("click", () => {
-  const basePoints = 20;
-  if (selectedSide === "nice") {
-    nicePoints += basePoints;
-    craftResult.textContent =
-      "You crafted a sparkling Nice gift! 🎁 +20 Nice Points";
-  } else {
-    naughtyPoints += basePoints;
-    craftResult.textContent =
-      "You crafted a mischievous Naughty gift! 😈 +20 Naughty Points";
+  // If they never explicitly chose a side, lock them to the current selected side on first craft
+  if (!chosenSide) {
+    chosenSide = selectedSide;
   }
 
+  const side = chosenSide; // their locked team
+  const baseTeamXp = 30;
+
+  if (side === "nice") {
+    craftResult.textContent =
+      "You crafted a sparkling Nice gift! 🎁 You helped Team Nice gain Season XP.";
+  } else {
+    craftResult.textContent =
+      "You crafted a mischievous Naughty gift! 😈 You helped Team Naughty gain Season XP.";
+  }
+
+  // Personal progress
   seasonXp += 30;
   elfCoins += 15;
-
-  updateNiceNaughtyUI();
   updateOverviewUI();
-});
 
-updateNiceNaughtyUI();
+  // Team progress
+  gainTeamXp(side, baseTeamXp);
+});
 
 // ---------- MAGIC PASS ----------
 let magicPassActive = false;
@@ -346,25 +407,25 @@ const rewardData = [
   {
     name: "Elf Winter Badge",
     type: "nice",
-    cost: "120 Nice Points",
+    cost: "120 Nice Team XP",
     tag: "Badge",
   },
   {
     name: "Chimney Sneak Boots",
     type: "naughty",
-    cost: "120 Naughty Points",
+    cost: "120 Naughty Team XP",
     tag: "Outfit",
   },
   {
     name: "Frostbound Husky Decoration",
     type: "nice",
-    cost: "200 Nice Points",
+    cost: "200 Nice Team XP",
     tag: "Decor",
   },
   {
     name: "Mischief Sparkle Trail",
     type: "naughty",
-    cost: "200 Naughty Points",
+    cost: "200 Naughty Team XP",
     tag: "Effect",
   },
   {
@@ -411,3 +472,6 @@ renderRewards();
 
 // ---------- EVENT DAYS LEFT (DEMO TEXT ONLY) ----------
 document.getElementById("eventDaysLeft").textContent = "12 days left";
+
+// Initialize team season UI once at the end
+updateTeamSeasonUI();
