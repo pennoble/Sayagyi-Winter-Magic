@@ -1,7 +1,8 @@
 // nice-naughty.js
-import { getUserSide, setUserSideOnce, getUserData } from "./ui.js";
+import { getUserSide, setUserSideOnce, getUserData, addCoins, addXp, saveUserData, applyAllUI } from "./ui.js";
 import { currentUser } from "./auth.js";
-import { fs, collection, getDocs, db, ref, get, set } from "./firebase.js";
+import { fs, collection, getDocs, db, ref, get, set, runTransaction } from "./firebase.js";
+import { gainTeamXp } from "./teams.js";
 
 const SIDE_DESCRIPTIONS = {
   nice: "You are on <strong>Team Nice</strong> 🎁 – crafting heartwarming gifts that earn Nice Points.",
@@ -286,8 +287,55 @@ function setupCraftButton() {
 
     await loadRecipesIfNeeded();
 
-    craftResult.textContent = getCombinationResult(side, itemA, itemB);
+const REWARD_COINS = 10;
+const REWARD_XP = 20;
+const REWARD_TEAM_XP = 10;
 
+const matchKey = normalizeItems(itemA, itemB);
+const match = combinations[matchKey] || null;
+const safeKey = encodeURIComponent(matchKey);
+const usedRef = ref(db, `winterMagic2025/usedRecipes/${safeKey}`);
+
+try {
+  const txResult = await runTransaction(usedRef, (current) => {
+    if (current && current.usedBy) {
+      return; 
+    }
+    return {
+      usedBy: uid,
+      usedAt: Date.now(),
+      result: match || ""
+    };
+  });
+
+  if (!txResult.committed) {
+  window.alert("These items are already claimed.");
+  return;
+}
+
+} catch (err) {
+  console.error("[Nice/Naughty] runTransaction failed:", err);
+  craftResult.textContent = getCombinationResult(side, itemA, itemB);
+  
+  return;
+}
+
+
+craftResult.textContent = getCombinationResult(side, itemA, itemB);
+
+if (match) {
+  try {
+    addCoins(REWARD_COINS);
+    addXp(REWARD_XP);
+    gainTeamXp(side, REWARD_TEAM_XP);
+    await saveUserData();
+    applyAllUI();
+    craftResult.textContent += ` You claimed this recipe and earned ${REWARD_COINS} Elf Coins and ${REWARD_XP} XP!`;
+  } catch (err) {
+    console.error("[Craft Reward] failed to apply rewards:", err);
+    craftResult.textContent += ` (Reward failed to apply — check console.)`;
+  }
+}
   
     state.count += 1;
     await saveCraftStateForUser(uid, state);
