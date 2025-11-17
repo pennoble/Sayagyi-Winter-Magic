@@ -1060,3 +1060,18 @@ body {
   margin-bottom: 6px;
   border: 1px solid rgba(220, 235, 255, 0.8);
 }
+
+#panel-elf-quests .card + .card {
+  margin-top: 14px;
+}
+
+@media (max-width: 600px) {
+  .recipe-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recipe-inputs .plus-sign {
+    display: none;
+  }
+}
