@@ -179,11 +179,11 @@ export function applyAllUI() {
 
   
   if (cValue) {
-    cValue.textContent = userData.elfCoins;
+    cValue.textContent = `${userData.elfCoins} / 500,000`;
   }
 
   if (cFill) {
-    const pctCoins = (userData.elfCoins / 400) * 100; 
+    const pctCoins = (userData.elfCoins / 500000) * 100; 
     cFill.style.width = `${Math.min(Math.max(pctCoins, 0), 100)}%`;
   }
 
@@ -204,4 +204,15 @@ export function applyAllUI() {
     naughtyVal.textContent = `${teamNaughty.xp} / ${teamNaughty.xpMax}`;
     naughtyFill.style.width = `${Math.min(Math.max(pctNaughty, 0), 100)}%`;
   }
+
+  const niceLevelEl = document.getElementById("niceTeamLevel");
+if (niceLevelEl && typeof teamNice?.level === "number") {
+  niceLevelEl.textContent = `Lvl ${teamNice.level}`;
+}
+
+const naughtyLevelEl = document.getElementById("naughtyTeamLevel");
+if (naughtyLevelEl && typeof teamNaughty?.level === "number") {
+  naughtyLevelEl.textContent = `Lvl ${teamNaughty.level}`;
+}
+
 }
