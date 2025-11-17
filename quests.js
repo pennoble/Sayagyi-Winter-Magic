@@ -68,7 +68,7 @@ export function movePlayerToLocation(locationId) {
 const TEAM_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000; 
 const TEAM_BONUS_XP = 150;
 const TEAM_BONUS_COINS = 10;
-const TEAM_BONUS_TEAM_XP = 80;
+const TEAM_BONUS_TEAM_XP = 20;
 
 let presenceCache = {};
 let usersByTeam = { nice: [], naughty: [] };
