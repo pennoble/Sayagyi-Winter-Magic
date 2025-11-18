@@ -2,7 +2,6 @@
 import { db, ref, get, update } from "./firebase.js";
 import { teamNice, teamNaughty } from "./teams.js";
 
-
 function createDefaultUserData(authUser) {
   return {
     displayName: authUser?.displayName || "",
@@ -14,19 +13,19 @@ function createDefaultUserData(authUser) {
     chosenSide: null,
     magicPassActive: false,
     magicPassExpiresAt: null,
-   
+
     activeTheme: "default",
-    ownedThemes: { default: true }
+    ownedThemes: { default: true },
+
+    // NEW: visual effects
+    activeEffect: "none",
+    ownedEffects: { none: true }
   };
 }
 
-
 let userData = createDefaultUserData(null);
 
-
 let currentUserId = null;
-
-
 
 export function getUserData() {
   return userData;
@@ -35,7 +34,6 @@ export function getUserData() {
 export function getUserSide() {
   return userData.chosenSide;
 }
-
 
 export async function loadUserData(authUser) {
   if (!authUser) {
@@ -68,39 +66,49 @@ export async function loadUserData(authUser) {
         displayName: data.displayName ?? userData.displayName,
         email: data.email ?? userData.email,
         activeTheme: data.activeTheme ?? userData.activeTheme,
-        ownedThemes: data.ownedThemes ?? userData.ownedThemes
+        ownedThemes: data.ownedThemes ?? userData.ownedThemes,
+
+        // NEW: merge effect data
+        activeEffect: data.activeEffect ?? userData.activeEffect,
+        ownedEffects: data.ownedEffects ?? userData.ownedEffects
       };
 
-      
+      // Make sure effects always have at least "none"
+      if (!userData.ownedEffects || typeof userData.ownedEffects !== "object") {
+        userData.ownedEffects = { none: true };
+      } else if (userData.ownedEffects.none !== true) {
+        userData.ownedEffects.none = true;
+      }
+      if (!userData.activeEffect) {
+        userData.activeEffect = "none";
+      }
+
       if (typeof userData.magicPassExpiresAt === "number") {
         userData.magicPassActive = userData.magicPassExpiresAt > Date.now();
       } else if (!userData.magicPassExpiresAt) {
         userData.magicPassActive = false;
       }
     } else {
-      
       await update(uRef, userData);
     }
   } catch (err) {
     console.error("loadUserData error:", err);
-    
   }
 
-  
   applyThemeToDocument();
 }
-
 
 function isMagicPassActiveNow() {
   if (typeof userData.magicPassExpiresAt !== "number") return false;
   return userData.magicPassExpiresAt > Date.now();
 }
 
-
 function applyThemeToDocument() {
   const themeId = userData.activeTheme || "default";
-  
+  const effectId = userData.activeEffect || "none";
+
   document.documentElement.setAttribute("data-theme", themeId);
+  document.documentElement.setAttribute("data-effect", effectId);
 }
 
 export async function saveUserData() {
@@ -134,11 +142,9 @@ export function addCoins(amount) {
   userData.elfCoins += finalAmount;
 }
 
-
 export async function setUserSideOnce(side) {
   if (!currentUserId) return;
 
-  
   if (userData.chosenSide === "nice" || userData.chosenSide === "naughty") {
     return;
   }
@@ -152,9 +158,7 @@ export async function setUserSideOnce(side) {
   applyAllUI();
 }
 
-
 export function applyAllUI() {
-  
   applyThemeToDocument();
 
   const lvl = document.getElementById("seasonLevel");
@@ -163,7 +167,6 @@ export function applyAllUI() {
   const cValue = document.getElementById("elfCoinsValue");
   const cFill = document.getElementById("elfCoinsFill");
 
-  
   if (lvl) {
     lvl.textContent = userData.seasonLevel;
   }
@@ -177,17 +180,15 @@ export function applyAllUI() {
     xpFill.style.width = `${Math.min(Math.max(pct, 0), 100)}%`;
   }
 
-  
   if (cValue) {
     cValue.textContent = `${userData.elfCoins} / 500,000`;
   }
 
   if (cFill) {
-    const pctCoins = (userData.elfCoins / 500000) * 100; 
+    const pctCoins = (userData.elfCoins / 500000) * 100;
     cFill.style.width = `${Math.min(Math.max(pctCoins, 0), 100)}%`;
   }
 
-  
   const niceVal = document.getElementById("nicePointsValue");
   const niceFill = document.getElementById("nicePointsFill");
   const naughtyVal = document.getElementById("naughtyPointsValue");
@@ -195,7 +196,7 @@ export function applyAllUI() {
 
   if (niceVal && niceFill && teamNice) {
     const pctNice = (teamNice.xp / teamNice.xpMax) * 100;
-    niceVal.textContent = `${teamNice.xp} / ${teamNice.xpMax}`;
+    niceVal.textContent = `${teamNice.xp} / teamNice.xpMax`;
     niceFill.style.width = `${Math.min(Math.max(pctNice, 0), 100)}%`;
   }
 
@@ -206,13 +207,12 @@ export function applyAllUI() {
   }
 
   const niceLevelEl = document.getElementById("niceTeamLevel");
-if (niceLevelEl && typeof teamNice?.level === "number") {
-  niceLevelEl.textContent = `Lvl ${teamNice.level}`;
-}
+  if (niceLevelEl && typeof teamNice?.level === "number") {
+    niceLevelEl.textContent = `Lvl ${teamNice.level}`;
+  }
 
-const naughtyLevelEl = document.getElementById("naughtyTeamLevel");
-if (naughtyLevelEl && typeof teamNaughty?.level === "number") {
-  naughtyLevelEl.textContent = `Lvl ${teamNaughty.level}`;
-}
-
+  const naughtyLevelEl = document.getElementById("naughtyTeamLevel");
+  if (naughtyLevelEl && typeof teamNaughty?.level === "number") {
+    naughtyLevelEl.textContent = `Lvl ${teamNaughty.level}`;
+  }
 }

@@ -10,6 +10,7 @@ import "./nice-naughty.js";
 import "./magic-pass.js";
 import "./themes.js";
 import "./event-countdown.js";
+import "./effects.js";
 
 
 import { dailyResetCheck } from "./reset.js";
