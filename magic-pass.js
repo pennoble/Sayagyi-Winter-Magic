@@ -1,13 +1,11 @@
 // magic-pass.js
 import { db, ref, get } from "./firebase.js";
-import { getUserData, saveUserData } from "./ui.js";
+import { getUserData, saveUserData, applyAllUI } from "./ui.js";
 
 const PASSWORDS_PATH = "winterMagic2025/magicPass/passwords";
 
-
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const SEVEN_DAYS_MS = 7 * ONE_DAY_MS;
-
 const EVENT_MS = 30 * ONE_DAY_MS;
 
 let cachedPasswords = null;
@@ -78,7 +76,6 @@ function refreshMagicPassUI() {
 
   const { active, remainingMs } = computeActiveAndRemaining();
 
-  
   if (timer) {
     if (active) {
       timer.textContent = `Expires in ${formatRemaining(remainingMs)}`;
@@ -87,12 +84,10 @@ function refreshMagicPassUI() {
     }
   }
 
-  
   toggleBtn.textContent = active
     ? "✅ Magic Pass Active"
     : "🔒 Activate Magic Pass";
 
-  
   if (active) {
     statusText.innerHTML =
       "Magic Pass is <strong>active</strong>. Enjoy double Elf Coins and extra perks!";
@@ -101,7 +96,6 @@ function refreshMagicPassUI() {
       "Magic Pass is currently <strong>locked</strong>.";
   }
 
-  
   if (badge) {
     if (active) {
       badge.classList.add("active");
@@ -194,6 +188,82 @@ async function handleActivateClick() {
   }
 
   refreshMagicPassUI();
+  applyAllUI();
+}
+
+async function purchaseMagicPass(days, price) {
+  const { statusText } = getEls();
+  const user = getUserData();
+
+  if (!user || !user.email) {
+    if (statusText) {
+      statusText.textContent = "You must be logged in to use Magic Pass.";
+    }
+    return;
+  }
+
+  const durationMs = days * ONE_DAY_MS;
+  if (!durationMs || durationMs <= 0) return;
+
+  if (typeof user.elfCoins !== "number") {
+    user.elfCoins = 0;
+  }
+
+  if (user.elfCoins < price) {
+    if (statusText) {
+      statusText.textContent = `You need ${price} Elf Coins to buy a ${days}-day Magic Pass.`;
+    }
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Buy Magic Pass for ${days} day${days > 1 ? "s" : ""} for ${price} Elf Coins?`
+  );
+  if (!confirmed) return;
+
+  const now = Date.now();
+  const base =
+    typeof user.magicPassExpiresAt === "number" &&
+    user.magicPassExpiresAt > now
+      ? user.magicPassExpiresAt
+      : now;
+
+  user.magicPassActive = true;
+  user.magicPassExpiresAt = base + durationMs;
+  user.elfCoins -= price;
+
+  try {
+    await saveUserData();
+    if (statusText) {
+      statusText.textContent = `Magic Pass activated for ${days} day${days > 1 ? "s" : ""} using Elf Coins.`;
+    }
+  } catch (err) {
+    console.error("[MagicPass] Failed to save user data (purchase):", err);
+    if (statusText) {
+      statusText.textContent =
+        "Failed to purchase Magic Pass. Please try again.";
+    }
+    return;
+  }
+
+  refreshMagicPassUI();
+  applyAllUI();
+}
+
+function setupMagicPassShop() {
+  const buttons = document.querySelectorAll(".magic-pass-buy-btn");
+  if (!buttons || !buttons.length) return;
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const daysAttr = btn.getAttribute("data-pass-days");
+      const priceAttr = btn.getAttribute("data-pass-price");
+      const days = Number(daysAttr);
+      const price = Number(priceAttr);
+      if (!days || !price) return;
+      purchaseMagicPass(days, price);
+    });
+  });
 }
 
 function setupMagicPass() {
@@ -202,13 +272,12 @@ function setupMagicPass() {
 
   toggleBtn.addEventListener("click", handleActivateClick);
 
-  
   refreshMagicPassUI();
 
-  
   setInterval(refreshMagicPassUI, 30000);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   setupMagicPass();
+  setupMagicPassShop();
 });
