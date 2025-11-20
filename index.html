@@ -75,6 +75,7 @@
       <button class="nav-btn" data-panel="nice-naughty">🎁 Nice & Naughty</button>
       <button class="nav-btn" data-panel="magic-pass">✨ Magic Pass</button>
       <button class="nav-btn" data-panel="rewards">🏆 Shop</button>
+      <button class="nav-btn" data-panel="write">✍️ Write</button>
     </nav>
 
     
@@ -322,7 +323,48 @@
         <div class="reward-grid" id="effectGrid"></div>
       </section>
 
+      <section class="panel" id="panel-write">
+  <div class="panel-inner">
+
+    <div class="panel-header">
+      <h2>Write</h2>
+      <span class="badge">Assignments</span>
+    </div>
+
+    <p class="panel-intro">
+      Write and submit sentences, paragraphs or essays. Submissions go to your teacher for review.
+    </p>
+
+    <article class="card">
+      <h3>New Submission</h3>
+
+      <div class="recipe-box" style="gap:10px;">
+        <label for="writeType" style="font-weight:600;">Type</label>
+        <select id="writeType" style="width:100%; padding:8px; border-radius:8px;">
+          <option value="sentence">Sentence</option>
+          <option value="paragraph">Paragraph</option>
+          <option value="essay">Essay</option>
+        </select>
+
+        <label for="writeText" style="font-weight:600; margin-top:8px; display:block;">Your text</label>
+        <textarea id="writeText" rows="6" placeholder="Write here..." style="width:100%; padding:10px; border-radius:8px;"></textarea>
+
+        <button id="submitWriteBtn" class="primary-btn" type="button">Submit</button>
+        <div id="writeMessage" class="status-message"></div>
+      </div>
+    </article>
+
+    <article class="card" style="margin-top:12px;">
+      <h3>Your Recent Submissions</h3>
+      <div id="mySubmissionsList" style="margin-top:8px;"></div>
+    </article>
+
+  </div>
+</section>
+
+
     </section>
+
   </main>
 
   
@@ -383,6 +425,23 @@
         </div>
         <p class="admin-note small" id="adminRecipeMessage"></p>
       </form>
+
+      <h3 class="admin-subtitle">Student Submissions</h3>
+<div class="admin-table-wrapper">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Student</th>
+        <th>Type</th>
+        <th>Text</th>
+        <th>Submitted</th>
+        <th>Reviewed</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="adminSubmissionsBody"></tbody>
+  </table>
+</div>
 
       <p class="admin-note">
         Only admins can see this dashboard. Data comes from Realtime Database
