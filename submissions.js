@@ -116,7 +116,7 @@ function setupSubmitButton() {
     const type = select.value || "sentence";
     const payload = {
       uid: user.uid,
-      displayName: (getUserData().displayName || "").toString(),
+      displayName: getUserData().displayName || user.email || user.uid,
       type,
       text,
       submittedAt: Date.now(),

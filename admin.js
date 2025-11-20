@@ -417,6 +417,10 @@ function openReviewModal(uid, id, submissionData) {
   textArea.style.borderRadius = "8px";
   textArea.style.resize = "vertical";
   textArea.value = submissionData.text || "";
+  box.style.background = "rgba(10,15,35,0.95)";
+  textArea.style.background = "rgba(255,255,255,0.95)";
+
+
 
   const formRow = document.createElement("div");
   formRow.style.display = "flex";
