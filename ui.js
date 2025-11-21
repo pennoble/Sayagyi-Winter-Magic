@@ -17,7 +17,6 @@ function createDefaultUserData(authUser) {
     activeTheme: "default",
     ownedThemes: { default: true },
 
-    // NEW: visual effects
     activeEffect: "none",
     ownedEffects: { none: true }
   };
@@ -68,12 +67,10 @@ export async function loadUserData(authUser) {
         activeTheme: data.activeTheme ?? userData.activeTheme,
         ownedThemes: data.ownedThemes ?? userData.ownedThemes,
 
-        // NEW: merge effect data
         activeEffect: data.activeEffect ?? userData.activeEffect,
         ownedEffects: data.ownedEffects ?? userData.ownedEffects
       };
 
-      // Make sure effects always have at least "none"
       if (!userData.ownedEffects || typeof userData.ownedEffects !== "object") {
         userData.ownedEffects = { none: true };
       } else if (userData.ownedEffects.none !== true) {
@@ -196,7 +193,7 @@ export function applyAllUI() {
 
   if (niceVal && niceFill && teamNice) {
     const pctNice = (teamNice.xp / teamNice.xpMax) * 100;
-    niceVal.textContent = `${teamNice.xp} / teamNice.xpMax`;
+    niceVal.textContent = `${teamNice.xp} / ${teamNice.xpMax}`;
     niceFill.style.width = `${Math.min(Math.max(pctNice, 0), 100)}%`;
   }
 

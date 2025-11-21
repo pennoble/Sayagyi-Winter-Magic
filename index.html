@@ -27,6 +27,9 @@
     <div class="auth-logged-in" id="authLoggedIn" style="display:none;">
       <span>Hi, <strong id="userNameDisplay"></strong> ❄️</span>
       <button type="button" id="logoutBtn">Log out</button>
+      <button id="submissionsToggleBtn" class="admin-toggle" style="display:none; margin-left:8px;">
+        Submissions
+      </button>
       <button id="adminToggleBtn" class="admin-toggle" style="display:none;">
         Admin
       </button>
@@ -382,25 +385,6 @@
 
       <div class="admin-teams" id="adminTeamsSummary"></div>
 
-      
-
-      <h3 class="admin-subtitle">Student Submissions</h3>
-<div class="admin-table-wrapper">
-  <table class="admin-table">
-    <thead>
-      <tr>
-        <th>Student</th>
-        <th>Type</th>
-        <th>Text</th>
-        <th>Submitted</th>
-        <th>Reviewed</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="adminSubmissionsBody"></tbody>
-  </table>
-</div>
-
       <h3 class="admin-subtitle">Recipes</h3>
       <div class="admin-table-wrapper">
         <table class="admin-table">
@@ -452,6 +436,36 @@
     </div>
   </section>
 
+<section id="submissionsDashboard" class="admin-dashboard hidden">
+  <div class="admin-card">
+    <div class="admin-header-row">
+      <h2>Student Submissions</h2>
+      <button id="submissionsCloseBtn" class="admin-close-btn">✕</button>
+    </div>
+
+    <div class="admin-teams" id="adminTeamsSummary"></div>
+
+    <div class="admin-table-wrapper" style="margin-top:6px;">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Type</th>
+            <th>Text</th>
+            <th>Submitted</th>
+            <th>Reviewed</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminSubmissionsBody"></tbody>
+      </table>
+    </div>
+
+    <p class="admin-note">
+      Submissions are stored in Realtime Database (winterMagic2025/submissions).
+    </p>
+  </div>
+</section>
  
   <script type="module" src="main.js"></script>
 

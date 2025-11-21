@@ -29,6 +29,10 @@ const adminRecipeMessage = document.getElementById("adminRecipeMessage");
 
 const adminSubmissionsBody = document.getElementById("adminSubmissionsBody");
 
+const submissionsDashboard = document.getElementById("submissionsDashboard");
+const submissionsToggleBtn = document.getElementById("submissionsToggleBtn");
+const submissionsCloseBtn = document.getElementById("submissionsCloseBtn");
+
 const ADMIN_EMAILS = [
   "admin@pennoble.com"
 ];
@@ -42,14 +46,29 @@ function showAdminButton(show) {
   adminToggleBtn.style.display = show ? "inline-flex" : "none";
 }
 
+function showSubmissionsButton(show) {
+  if (!submissionsToggleBtn) return;
+  submissionsToggleBtn.style.display = show ? "inline-flex" : "none";
+}
+
 function hideAdminDashboard() {
   if (!adminDashboard) return;
   adminDashboard.classList.add("hidden");
 }
 
+function hideSubmissionsDashboard() {
+  if (!submissionsDashboard) return;
+  submissionsDashboard.classList.add("hidden");
+}
+
 function showAdminDashboard() {
   if (!adminDashboard) return;
   adminDashboard.classList.remove("hidden");
+}
+
+function showSubmissionsDashboard() {
+  if (!submissionsDashboard) return;
+  submissionsDashboard.classList.remove("hidden");
 }
 
 if (adminToggleBtn) {
@@ -66,6 +85,23 @@ if (adminToggleBtn) {
 if (adminCloseBtn) {
   adminCloseBtn.addEventListener("click", () => {
     hideAdminDashboard();
+  });
+}
+
+if (submissionsToggleBtn) {
+  submissionsToggleBtn.addEventListener("click", () => {
+    if (!isAdmin) return;
+    if (submissionsDashboard.classList.contains("hidden")) {
+      showSubmissionsDashboard();
+    } else {
+      hideSubmissionsDashboard();
+    }
+  });
+}
+
+if (submissionsCloseBtn) {
+  submissionsCloseBtn.addEventListener("click", () => {
+    hideSubmissionsDashboard();
   });
 }
 
@@ -420,8 +456,6 @@ function openReviewModal(uid, id, submissionData) {
   box.style.background = "rgba(10,15,35,0.95)";
   textArea.style.background = "rgba(255,255,255,0.95)";
 
-
-
   const formRow = document.createElement("div");
   formRow.style.display = "flex";
   formRow.style.gap = "12px";
@@ -701,9 +735,11 @@ onAuthStateChanged(auth, (user) => {
   isAdmin = !!user && ADMIN_EMAILS.includes(email);
 
   showAdminButton(isAdmin);
+  showSubmissionsButton(isAdmin);
 
   if (!isAdmin) {
     hideAdminDashboard();
+    hideSubmissionsDashboard();
     return;
   }
 
