@@ -7,20 +7,20 @@ import { gainTeamXp } from "./teams.js";
 
 const DAILY_QUESTS = {
   iceRink: {
-    name: "Find Sprout in the Ice Rink",
-    description: "Find Sprout and pick up tools."
+    name: "Write a paragraph.",
+    description: "Use a Graphic Organizer: Descriptive."
   },
   cafe: {
-    name: "Wake Ivy with Hot Cocoa",
-    description: "Bring Ivy a hot cocoa."
+    name: "Write a paragraph.",
+    description: "Use a Graphic Organizer: Compare-and-contrast."
   },
   stage: {
-    name: "Make Cole Laugh",
-    description: "Perform a dance on the stage."
+    name: "Draw a sentence diagram.",
+    description: "ပုံမှန် Assignment ထပ်နေကြအတိုင်း Video ရိုက်ပေးပြီးထပ်ရမှာပါ၊ စကားလုံး 30 အထက်။"
   },
   market: {
-    name: "Gather Lost Candy Canes",
-    description: "Collect candy canes in the market."
+    name: "Write a paragraph.",
+    description: "Use a Graphic Organizer: Expository."
   }
 };
 
@@ -270,3 +270,4 @@ export function initQuestUI() {
   startTeamBonusListeners();
   setupTeamBonusClickHandler();
 }
+
