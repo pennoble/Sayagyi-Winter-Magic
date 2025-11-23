@@ -12,6 +12,7 @@ import "./themes.js";
 import "./event-countdown.js";
 import "./effects.js";
 import "./submissions.js";
+import "./players.js";
 
 
 import { dailyResetCheck } from "./reset.js";

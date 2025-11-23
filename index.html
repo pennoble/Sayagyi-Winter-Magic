@@ -74,6 +74,7 @@
    
     <nav class="event-nav">
       <button class="nav-btn active" data-panel="overview">🌟 Overview</button>
+      <button class="nav-btn" data-panel="players">👥 Players</button>
       <button class="nav-btn" data-panel="elf-quests">🧝 Elf Quests</button>
       <button class="nav-btn" data-panel="nice-naughty">🎁 Nice & Naughty</button>
       <button class="nav-btn" data-panel="magic-pass">✨ Magic Pass</button>
@@ -127,6 +128,32 @@
           </article>
         </div>
       </section>
+
+
+      
+<section class="panel" id="panel-players">
+  <div class="panel-header">
+    <h2>Players</h2>
+    <span class="badge">Team Roster</span>
+  </div>
+
+  <p class="panel-intro">
+    See players grouped by team. Green = online now, grey = offline.
+  </p>
+
+  <div class="panel-grid">
+    <article class="card">
+      <h3>Team Nice</h3>
+      <div id="playersNiceList" style="margin-top:8px;"></div>
+    </article>
+
+    <article class="card">
+      <h3>Team Naughty</h3>
+      <div id="playersNaughtyList" style="margin-top:8px;"></div>
+    </article>
+  </div>
+</section>
+
 
      
       <section class="panel" id="panel-elf-quests">
